@@ -1,0 +1,63 @@
+{
+  "version": "demo-v1",
+  "description": "Fictional, local-only governance rules for simulated resource changes.",
+  "rules": [
+    {
+      "id": "deny_production",
+      "type": "deny_environment",
+      "effect": "deny",
+      "severity": "critical",
+      "rationale": "Production-labeled fictional resources are excluded from simulated changes.",
+      "environment": "production"
+    },
+    {
+      "id": "deny_restricted",
+      "type": "deny_restricted_resource",
+      "effect": "deny",
+      "severity": "critical",
+      "rationale": "Resources marked restricted are excluded from simulated changes.",
+      "governanceFlag": "hasRestrictedTag",
+      "tagKeys": ["classification", "access"],
+      "restrictedValue": "restricted"
+    },
+    {
+      "id": "deny_protected",
+      "type": "deny_protected_resource",
+      "effect": "deny",
+      "severity": "critical",
+      "rationale": "Protected fictional resources cannot be changed by the simulation.",
+      "governanceFlag": "protectedFromChanges"
+    },
+    {
+      "id": "require_owner",
+      "type": "require_owner",
+      "effect": "deny",
+      "severity": "warning",
+      "rationale": "Every resource change needs a nonempty normalized owner label.",
+      "source": "resource.owner"
+    },
+    {
+      "id": "allow_actions",
+      "type": "allow_actions",
+      "effect": "deny",
+      "severity": "critical",
+      "rationale": "Only the two predefined simulated compute actions are supported.",
+      "actions": ["resize_compute", "disable_compute"]
+    },
+    {
+      "id": "limit_cost_increase",
+      "type": "limit_monthly_cost_increase",
+      "effect": "deny",
+      "severity": "warning",
+      "rationale": "A fictional monthly cost increase above the demo cap is denied.",
+      "maximumMonthlyIncreaseCents": 5000
+    },
+    {
+      "id": "require_human_approval",
+      "type": "require_human_approval",
+      "effect": "require_approval",
+      "severity": "critical",
+      "rationale": "Every simulated modification requires an independent authenticated CLI decision."
+    }
+  ]
+}

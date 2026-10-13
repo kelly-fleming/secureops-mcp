@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "secureops": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/dist/mcp/stdio.js"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "SECUREOPS_MODE": "local-full",
+        "SECUREOPS_DB_PATH": "${workspaceFolder}/data/demo/secureops-demo.db"
+      }
+    }
+  }
+}

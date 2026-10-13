@@ -1,0 +1,46 @@
+{
+  "name": "secureops-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An experimental personal hobby project for fictional cloud governance workflows over MCP",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "tsx src/mcp/stdio.ts",
+    "build": "tsc -p tsconfig.json && node scripts/copy-migrations.mjs",
+    "start": "node dist/mcp/stdio.js",
+    "cli": "node dist/cli/index.js",
+    "db:migrate": "node dist/cli/commands/migrate.js",
+    "db:seed": "node dist/cli/commands/db.js seed",
+    "db:reset": "node dist/cli/commands/db.js reset",
+    "reviewer:init": "node dist/cli/commands/reviewer-init.js",
+    "demo:local": "tsx scripts/demo-local.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint .",
+    "format:check": "prettier --check src scripts/demo-local.ts scripts/smoke-stdio.mjs tests eslint.config.js vitest.config.ts package.json tsconfig.json tsconfig.test.json .prettierrc.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run format:check"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "8.7.3",
+    "@modelcontextprotocol/server": "2.3.1",
+    "better-sqlite3": "13.0.3",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@modelcontextprotocol/client": "2.3.1",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.4",
+    "eslint": "10.12.0",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.4"
+  }
+}

@@ -1,0 +1,21 @@
+# MCP boundary guidance
+
+Follow root `AGENTS.md`. `createMcpServer` accepts only a configuration issued by `loadConfig` and a matching open file connection with the configured read-only state. The caller owns and closes that connection. Keep server construction free of transport setup and module-level state.
+
+For local stdio, validate `local-full` configuration before opening SQLite. The SDK may construct a disposable discovery instance before pinning another instance to the connection, so each factory invocation needs its own configured database connection and close callback. Apply tracked migrations through `src/infra/sqlite/migrate.ts`, close the connection if setup fails, and release it when that server closes. Keep transport creation in the direct stdio entry and send diagnostics only to stderr; stdout belongs to the MCP protocol.
+
+The stdio child-process contract should bound requests and shutdown, inspect every stdout line as a JSON-RPC frame, and use an isolated migrated database. Assert the complete production tool list and reject any reviewer-decision tool; update the expected list when a tool is deliberately added or removed.
+
+Treat modular tool registrars as trusted application code. Each registrar must register only its assigned tool name and use the supplied actor and database context; never read an actor, role, reviewer decision, or credential from tool arguments. Wire each completed local registrar into the direct stdio entry so the host can discover it. The factory's HTTP slots are limited to resource list, detail, and analysis. Local slots may request review or simulated execution, but no MCP tool may decide a proposal or authenticate a reviewer.
+
+The local `execute_change` registrar accepts only a proposal ID and idempotency key. Pass the issued server actor and configured connection to `ExecutionService`; let the service recheck the independent CLI decision, current policy, and resource version inside its transaction. Return only the strict simulated result through `handleStructuredToolCall`. Never accept an approval token, raw command, reviewer identity, or provider credentials in this tool.
+
+The local `get_audit_log` registrar passes only bounded proposal/resource filters and pagination to `AgentAuditService` with the issued agent actor. Return fixed workflow summaries through the strict output schema; no raw event JSON, actor IDs, reviewer text, identity events, hashes, or chain-verification claims belong in this tool. Keep it out of HTTP demo mode.
+
+Mark genuinely read-only tools with a read-only annotation for client discovery. Annotations are advisory; permission checks and data boundaries remain in the application service. Keep the stdio discovery contract aligned with each tool wired into the direct entry.
+
+When changing MCP behavior, begin with the affected registrar, its schema in `src/mcp/schemas.ts`, and the caller-facing service before updating tool lists or client examples. Preserve the complete stdio discovery contract, and distinguish authored contracts from observed client behavior.
+
+Use `src/mcp/schemas.ts` for concrete strict input and output schemas. `handleStructuredToolCall` accepts frozen service DTOs and parses both sides before returning a fresh structured result, so registrars need not copy nested resource fields. It maps thrown failures through `toToolErrorResult`. The SDK also validates declared schemas before and after the callback, so never rely on the helper alone to make arbitrary text safe. Keep thrown messages, configuration, SQL, paths, credentials, and review text out of results. Service methods enforce capabilities and protected transitions.
+
+When summarizing or reviewing MCP work, name the affected registrar, schema, and direct stdio wiring. Fix only concrete defects and state whether a client handshake was actually observed.

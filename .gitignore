@@ -1,0 +1,26 @@
+# Build outputs
+node_modules/
+.npm-cache/
+dist/
+coverage/
+.vitest/
+*.tsbuildinfo
+*.log
+
+# Local configuration and generated data
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.token
+*.secret
+.secrets/
+secrets/
+
+# Editor and operating system files
+.DS_Store

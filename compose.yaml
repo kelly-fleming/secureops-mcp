@@ -1,0 +1,29 @@
+services:
+  checks:
+    profiles: [tools]
+    build:
+      context: .
+      target: development
+    command: npm run check
+  secureops:
+    build:
+      context: .
+      target: runtime
+    stdin_open: true
+    environment:
+      SECUREOPS_MODE: local-full
+      SECUREOPS_DB_PATH: /app/data/demo/secureops-demo.db
+    volumes:
+      - demo-data:/app/data
+  demo:
+    profiles: [tools]
+    build:
+      context: .
+      target: development
+    command: npm run demo:local
+    environment:
+      SECUREOPS_MODE: local-full
+    volumes:
+      - demo-data:/app/data
+volumes:
+  demo-data:

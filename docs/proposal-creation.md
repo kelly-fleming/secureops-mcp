@@ -1,0 +1,9 @@
+# Proposal creation boundary
+
+`src/application/proposal-service.ts` accepts a strict `propose_change` request only from an issued actor with that capability. The actor ID comes from the server context, never request data. The service reads the exact fictional resource, validates it, previews the allowlisted action without changing state, and evaluates the current versioned demo policy. A denied policy finding prevents draft persistence.
+
+An eligible request creates one draft with the resource's current version, the requested action and reason, and a validated policy document snapshot. It returns the proposal ID, synthetic before/after preview, policy findings, and simulation notice. This output does not request approval, record a reviewer decision, or authorize execution. Later approval and execution services must recheck current policy and resource version in their write transactions.
+
+Idempotency keys are scoped to the issued actor. An exact retry while the proposal remains a draft and the resource version is unchanged returns the original proposal ID with a reconstructed preview using its stored policy snapshot. A changed request, later proposal status, or changed resource version returns a conflict and leaves the original key reserved. The service cannot reconstruct an accurate historical preview after the resource changes because proposals do not store resource snapshots. The snapshot used for an unchanged retry is historical context, not current approval authority.
+
+The service constructs its resource, proposal, and audit repositories from the same configured SQLite connection. It wraps assessment, creation, and the safe `proposal_created` audit append in one immediate transaction; an exact idempotent replay appends no new event. A caller that owns a larger workflow transaction can roll back both the draft and its audit event. Proposal creation itself never updates resource rows.

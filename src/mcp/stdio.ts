@@ -1,0 +1,106 @@
+import { realpathSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import type { McpServer } from '@modelcontextprotocol/server';
+import { serveStdio, type StdioServerHandle } from '@modelcontextprotocol/server/stdio';
+
+import { ConfigError, loadConfig } from '../config.js';
+import { openConfiguredDatabase } from '../infra/sqlite/connection.js';
+import { applyMigrations, discoverMigrations } from '../infra/sqlite/migrate.js';
+import { createMcpServer, type McpServerDependencies } from './server.js';
+import { registerAnalyzeResourceTool } from './tools/analyze-resource.js';
+import { registerEvaluatePolicyTool } from './tools/evaluate-policy.js';
+import { registerExecuteChangeTool } from './tools/execute-change.js';
+import { registerGetAuditLogTool } from './tools/get-audit-log.js';
+import { registerGetResourceTool } from './tools/get-resource.js';
+import { registerListResourcesTool } from './tools/list-resources.js';
+import { registerProposeChangeTool } from './tools/propose-change.js';
+import { registerRequestApprovalTool } from './tools/request-approval.js';
+
+export interface LocalStdioOptions {
+  readonly environment?: NodeJS.ProcessEnv;
+  readonly workingDirectory?: string;
+  readonly toolRegistrars?: McpServerDependencies['toolRegistrars'];
+}
+
+/** Validate once, then construct an independently owned server and database per SDK invocation. */
+export function createLocalStdioServerFactory(options: LocalStdioOptions = {}): () => McpServer {
+  const config = loadConfig(
+    options.environment ?? process.env,
+    options.workingDirectory ?? process.cwd(),
+  );
+  if (config.mode !== 'local-full') throw new ConfigError('Local stdio requires local-full mode.');
+  const migrations = discoverMigrations();
+  const toolRegistrars: NonNullable<McpServerDependencies['toolRegistrars']> = {
+    ...options.toolRegistrars,
+    list_resources: options.toolRegistrars?.list_resources ?? registerListResourcesTool,
+    get_resource: options.toolRegistrars?.get_resource ?? registerGetResourceTool,
+    analyze_resource: options.toolRegistrars?.analyze_resource ?? registerAnalyzeResourceTool,
+    evaluate_policy: options.toolRegistrars?.evaluate_policy ?? registerEvaluatePolicyTool,
+    propose_change: options.toolRegistrars?.propose_change ?? registerProposeChangeTool,
+    request_approval: options.toolRegistrars?.request_approval ?? registerRequestApprovalTool,
+    execute_change: options.toolRegistrars?.execute_change ?? registerExecuteChangeTool,
+    get_audit_log: options.toolRegistrars?.get_audit_log ?? registerGetAuditLogTool,
+  };
+
+  return () => {
+    const database = openConfiguredDatabase(config);
+    try {
+      applyMigrations(database, migrations);
+      const server = createMcpServer({ config, database, toolRegistrars }, 'local-full');
+      // serveStdio may discard a discovery probe before pinning a second instance.
+      server.server.onclose = () => {
+        if (database.open) database.close();
+      };
+      return server;
+    } catch (error) {
+      database.close();
+      throw error;
+    }
+  };
+}
+
+/** Own the stdio transport while each SDK-created server owns its SQLite connection. */
+export function startLocalStdio(options: LocalStdioOptions = {}): StdioServerHandle {
+  const buildServer = createLocalStdioServerFactory(options);
+  return serveStdio(() => {
+    try {
+      return buildServer();
+    } catch {
+      // SDK factory failures may happen after this function returns.
+      process.stderr.write('SecureOps MCP initialization failed.\n');
+      throw new Error('SecureOps MCP initialization failed.');
+    }
+  });
+}
+
+function isDirectInvocation(): boolean {
+  const entryPoint = process.argv[1];
+  if (entryPoint === undefined) return false;
+  try {
+    return realpathSync(path.resolve(entryPoint)) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectInvocation()) {
+  try {
+    const handle = startLocalStdio();
+    let closing = false;
+    const close = (): void => {
+      if (closing) return;
+      closing = true;
+      void handle.close().catch(() => {
+        process.stderr.write('SecureOps MCP shutdown failed.\n');
+        process.exitCode = 1;
+      });
+    };
+    process.once('SIGINT', close);
+    process.once('SIGTERM', close);
+  } catch {
+    process.stderr.write('SecureOps MCP startup failed.\n');
+    process.exitCode = 1;
+  }
+}
