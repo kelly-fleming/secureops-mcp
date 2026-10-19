@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
+
+const projectIdentity = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+);
 
 // Pass a command after the script to test a Docker stdio process from the host.
 const [command = process.execPath, ...args] = process.argv.slice(2);
@@ -67,7 +72,8 @@ try {
     capabilities: {},
     clientInfo: { name: 'secureops-compiled-smoke', version: '0.1.0' },
   });
-  assert.equal(initialized.serverInfo.name, 'secureops-mcp');
+  assert.equal(initialized.serverInfo.name, projectIdentity.name);
+  assert.equal(initialized.serverInfo.version, projectIdentity.version);
   child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
   const listed = await request('tools/list', {});
   const expected = [

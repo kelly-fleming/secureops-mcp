@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { DiagnosticLogger } from '../infra/logging/logger.js';
 import { AuditCommandError, runAuditListCommand, runAuditVerifyCommand } from './commands/audit.js';
 import { runDatabaseCommand } from './commands/db.js';
 import { runMigrationCommand } from './commands/migrate.js';
@@ -11,6 +12,7 @@ import {
   runProposalReviewCommand,
 } from './commands/proposals.js';
 import { runReviewerInitCommand } from './commands/reviewer-init.js';
+import { createCliDiagnosticLogger, withCliDiagnostics } from './diagnostics.js';
 import { resourceIdSchema } from '../domain/resource.js';
 import { proposalDraftSchema } from '../infra/sqlite/proposal-repository.js';
 
@@ -217,6 +219,7 @@ export function parseCliArgs(args: readonly string[]): ParsedCliArgs {
 export interface CliRuntime {
   readonly environment: NodeJS.ProcessEnv;
   readonly workingDirectory: string;
+  readonly logger?: DiagnosticLogger | undefined;
   isInteractive(): boolean;
   runMigration: typeof runMigrationCommand;
   runDatabase: typeof runDatabaseCommand;
@@ -231,6 +234,7 @@ function defaultRuntime(): CliRuntime {
   return {
     environment: process.env,
     workingDirectory: process.cwd(),
+    logger: createCliDiagnosticLogger(process.env),
     isInteractive: () => process.stdin.isTTY === true && process.stderr.isTTY === true,
     runMigration: runMigrationCommand,
     runDatabase: runDatabaseCommand,
@@ -251,6 +255,19 @@ export async function runCli(
   if (parsed.kind === 'help') return parsed.text;
 
   const { command, options } = parsed;
+  return withCliDiagnostics(
+    runtime.logger,
+    command,
+    () => dispatchCliCommand(command, options, runtime),
+    { proposalId: options.proposalId, resourceId: options.resourceId },
+  );
+}
+
+async function dispatchCliCommand(
+  command: CliCommand,
+  options: CliOptions,
+  runtime: CliRuntime,
+): Promise<string> {
   const databaseArgs = ['--db-path', options.databasePath] as const;
   switch (command) {
     case 'db:migrate': {

@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 
 import { modeOfLoadedConfig, type AppConfig } from '../config.js';
 import { ForbiddenError } from '../domain/errors.js';
+import type { DiagnosticLogger } from '../infra/logging/logger.js';
 import type { SqliteConnection } from '../infra/sqlite/connection.js';
 import { createMcpActor, type ActorContext } from '../security/permissions.js';
 
@@ -19,10 +20,11 @@ export const localToolNames = [
 
 export type McpToolName = (typeof sharedToolNames)[number] | (typeof localToolNames)[number];
 
-/** Each tool receives only its caller-owned connection and issued actor. */
+/** Each tool receives its caller-owned connection, issued actor, and bounded diagnostics. */
 export interface McpToolContext {
   readonly database: SqliteConnection;
   readonly actor: ActorContext;
+  readonly logger?: DiagnosticLogger | undefined;
 }
 
 export type McpToolRegistrar = (server: McpServer, context: McpToolContext) => void;
@@ -31,6 +33,7 @@ export type McpToolRegistrar = (server: McpServer, context: McpToolContext) => v
 export interface McpServerDependencies {
   readonly config: AppConfig;
   readonly database: SqliteConnection;
+  readonly logger?: DiagnosticLogger;
   /** Trusted registrations; partial sets support isolated server construction. */
   readonly toolRegistrars?: Readonly<Partial<Record<McpToolName, McpToolRegistrar>>>;
 }
@@ -53,12 +56,13 @@ export function createMcpServer(
   }
 
   const server = new McpServer(
-    { name: 'secureops-mcp', version: '0.1.0' },
+    { name: 'secureops-mcp', version: '0.2.0' },
     { capabilities: { tools: {} } },
   );
   const context: McpToolContext = Object.freeze({
     database: dependencies.database,
     actor: createMcpActor(dependencies.config),
+    logger: dependencies.logger,
   });
   for (const name of sharedToolNames) dependencies.toolRegistrars?.[name]?.(server, context);
   if (mode === 'local-full') {

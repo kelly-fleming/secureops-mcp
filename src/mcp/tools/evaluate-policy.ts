@@ -26,6 +26,7 @@ export const registerEvaluatePolicyTool: McpToolRegistrar = (server, context) =>
         evaluatePolicyInputSchema,
         evaluatePolicyOutputSchema,
         (request) => policyPreviewService.evaluatePolicy(context.actor, request),
+        { logger: context.logger, operation: 'evaluate_policy' },
       ),
   );
 };

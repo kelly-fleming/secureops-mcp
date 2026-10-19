@@ -24,6 +24,7 @@ export const registerListResourcesTool: McpToolRegistrar = (server, context) => 
         listResourcesInputSchema,
         listResourcesOutputSchema,
         (filters) => resourceService.listResources(context.actor, filters),
+        { logger: context.logger, operation: 'list_resources' },
       ),
   );
 };

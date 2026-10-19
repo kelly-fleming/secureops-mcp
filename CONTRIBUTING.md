@@ -4,9 +4,10 @@ SecureOps MCP is an experimental personal hobby project, developed independently
 
 ## Set up a local development copy
 
-If Node or native dependencies are unavailable on your machine, use the
-[Docker setup](docs/docker.md). Docker builds from the lockfile and runs the same
-checks with Node 24. No host npm installation is needed for that path.
+Start with the [Docker setup](docs/docker.md): from the repository root in Bash,
+run `docker compose build checks` and then `docker compose run --rm -T checks`.
+Docker builds from the lockfile and runs the combined checks with Node 24; no
+host npm installation is needed for that path.
 
 Use Node 24 from the repository root in Bash (including Git Bash on Windows):
 
@@ -14,7 +15,18 @@ Use Node 24 from the repository root in Bash (including Git Bash on Windows):
 npm ci
 ```
 
-The available checks are `npm run lint`, `npm run typecheck`, `npm run test`, `npm run test:coverage`, `npm run build`, `npm run format:check`, and the combined `npm run check`. Run the relevant checks before a pull request and report their actual results. [Local setup](docs/local-setup.md) explains the separate compiled server, disposable demo database, and interactive reviewer CLI. A written command list is not evidence that a check passed.
+`npm run check` runs lint, typechecks, the full test suite with coverage once,
+build, and formatting. Coverage includes all `src/**/*.ts` and enforces 80%
+aggregate line and branch thresholds separately for application, domain, and
+security source. `npm run test:coverage` runs the same coverage gate alone;
+`npm run test` runs tests without coverage. The other standalone commands are
+`npm run lint`, `npm run typecheck`, `npm run build`, and `npm run format:check`.
+Run relevant checks before a pull request and report actual outcomes and scoped
+percentages. [Docker reproduction guidance](docs/docker.md#reproduce-compiled-and-workflow-behavior)
+covers the compiled MCP handshake, independent review, replay, and private-copy
+audit verification. [Local setup](docs/local-setup.md) explains the separate
+compiled server, disposable demo database, and interactive reviewer CLI. A
+written command list is not evidence that a check passed.
 
 ## Coding standards
 

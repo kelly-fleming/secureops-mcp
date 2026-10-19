@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { createCliDiagnosticLogger, withCliDiagnostics } from '../src/cli/diagnostics.js';
 import {
   cliCommands,
   CliUsageError,
@@ -8,6 +9,7 @@ import {
   runCli,
   type CliRuntime,
 } from '../src/cli/index.js';
+import { createDiagnosticLogger } from '../src/infra/logging/logger.js';
 
 const databasePath = 'data/demo/secureops-demo.db';
 const proposalId = 'proposal-demo-001';
@@ -203,5 +205,84 @@ describe('CLI command grammar and router', () => {
       `audit:list:${JSON.stringify({ databasePath })}`,
       `audit:verify:${JSON.stringify({ databasePath })}`,
     ]);
+  });
+
+  it('uses one safe correlation scope per routed command, including handler failures', async () => {
+    const lines: string[] = [];
+    let nextId = 0;
+    const logger = createDiagnosticLogger({
+      level: 'info',
+      sink: {
+        write: (line) => {
+          lines.push(line);
+        },
+      },
+      clock: { now: () => new Date('2026-10-18T00:00:00.000Z') },
+      ids: { nextId: () => `cli-trace-000${++nextId}` },
+    });
+    const secret = 'fictional-private-passphrase';
+    const { runtime } = fakeRuntime();
+    const loggedRuntime: CliRuntime = {
+      ...runtime,
+      environment: { ...runtime.environment, SECUREOPS_HTTP_AUTH_TOKEN: secret },
+      logger,
+      runAuditVerify: async () => {
+        throw new Error(secret);
+      },
+    };
+
+    expect(
+      await runCli(
+        ['proposals:review', '--db-path', databasePath, '--proposal-id', proposalId],
+        loggedRuntime,
+      ),
+    ).toBe('Review canceled; no decision recorded.');
+    await expect(
+      runCli(['audit:verify', '--db-path', databasePath], loggedRuntime),
+    ).rejects.toThrow(secret);
+
+    const records = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(
+      records.map(({ operation, event, correlationId }) => ({ operation, event, correlationId })),
+    ).toEqual([
+      { operation: 'proposals:review', event: 'started', correlationId: 'cli-trace-0001' },
+      { operation: 'proposals:review', event: 'succeeded', correlationId: 'cli-trace-0001' },
+      { operation: 'audit:verify', event: 'started', correlationId: 'cli-trace-0002' },
+      { operation: 'audit:verify', event: 'failed', correlationId: 'cli-trace-0002' },
+    ]);
+    expect(records[0]).toMatchObject({ proposalId });
+    expect(records[3]).toMatchObject({ errorCode: 'INTERNAL_ERROR' });
+    expect(lines.join('')).not.toContain(secret);
+    expect(lines.join('')).not.toContain(databasePath);
+  });
+
+  it('keeps command results intact when a diagnostic sink fails and honors silent mode', async () => {
+    const { runtime } = fakeRuntime();
+    const logger = createDiagnosticLogger({
+      level: 'info',
+      sink: {
+        write: () => {
+          throw new Error('fictional sink failure');
+        },
+      },
+      clock: { now: () => new Date('2026-10-18T00:00:00.000Z') },
+      ids: { nextId: () => 'cli-trace-0001' },
+    });
+    expect(await runCli(['db:migrate', '--db-path', databasePath], { ...runtime, logger })).toBe(
+      'Applied 2 migration(s); schema version 3.',
+    );
+
+    const lines: string[] = [];
+    const silent = createCliDiagnosticLogger(
+      { SECUREOPS_LOG_LEVEL: 'silent' },
+      {
+        write: (line) => {
+          lines.push(line);
+        },
+      },
+    );
+    expect(await withCliDiagnostics(silent, 'db:migrate', () => 42)).toBe(42);
+    expect(lines).toEqual([]);
+    expect(createCliDiagnosticLogger({ SECUREOPS_LOG_LEVEL: 'invalid' })).toBeUndefined();
   });
 });

@@ -28,8 +28,14 @@ the container with the current image while retaining resources, proposals,
 reviewer identities, and audit history. Checks and demo services use the `tools`
 profile so a plain `docker compose up -d` cannot run the destructive demo setup.
 
-Run checks with `bash deploy.sh check` or `bash deploy.sh coverage`. To enroll
-and review from a real terminal after starting:
+Run the combined gate with `bash deploy.sh check`; it runs lint, both typechecks,
+the full test suite with coverage once, build, and formatting. Use
+`bash deploy.sh coverage` only when you want the standalone coverage command.
+The coverage gate requires 80% aggregate line and branch coverage separately
+for `src/application/**`, `src/domain/**`, and `src/security/**`. The report
+still includes the broader `src/**/*.ts` source set.
+
+To enroll and review from a real terminal after starting:
 
 ```bash
 proposal_id='replace-with-proposal-id'
@@ -57,11 +63,18 @@ reset the database or remove volumes.
 ## Direct Docker commands
 
 ```bash
-docker compose build secureops checks demo
+docker compose build checks
 docker compose run --rm -T checks
-docker compose run --rm -T checks npm run test:coverage
+docker compose build secureops demo
 docker compose run --rm -T secureops npm run db:seed -- --db-path data/demo/secureops-demo.db
 ```
+
+The combined `checks` command already runs coverage once. For coverage alone,
+run `docker compose run --rm -T checks npm run test:coverage` instead of the
+combined command. With host Node 24 and dependencies installed through
+`npm ci`, the corresponding commands are `npm run check` and, for coverage
+alone, `npm run test:coverage`. The plain `npm run test` remains available
+without coverage enforcement.
 
 The `secureops` image contains production dependencies, compiled code and SQL
 migrations, fictional fixtures, and demo policies. The `checks` and `demo` images
@@ -95,6 +108,39 @@ node scripts/smoke-stdio.mjs docker compose run --rm -T secureops
 
 This client reads the seeded database and attempts a missing proposal; it does
 not create proposals or execute changes.
+
+## Reproduce compiled and workflow behavior
+
+Use the combined gate above first. For a compiled MCP handshake, seed
+the disposable Docker demo database and use the smoke client above; it checks
+the compiled stdio entry through the `secureops` image. Keep `-T` for this MCP
+process.
+
+For workflow acceptance, use the guided demo below with a real terminal for
+reviewer commands. Confirm that a pending proposal cannot execute, then record
+a rejection and confirm that it also cannot execute. Run setup again only when
+intentionally starting a new disposable scenario: it clears prior proposals,
+identities, and audit history. Enroll an independent reviewer, approve a new
+proposal, resume once to observe one fictional resource update, and repeat the
+same resume command to confirm it returns the saved execution without another
+write. For the corruption case, use SQLite's backup API to create a private
+copy of a migrated disposable database containing audit events in the same
+Docker volume, then alter a non-tail audit row only in the backup. For a backup
+at `data/demo/secureops-audit-check.db`, run the authenticated CLI from a real
+terminal:
+
+```bash
+docker compose run --rm --interactive --no-tty=false secureops npm run cli -- audit:verify --db-path data/demo/secureops-audit-check.db
+```
+
+Expect an invalid-chain report. Do not alter the active demo database; deleting
+only the tail is not detectable without a trusted external head record. Use an
+explicit local-mode database path for the backup and discard it after the check.
+
+Record automated command outcomes and coverage percentages separately from
+human terminal observations. For CI, record a run URL, commit, and conclusion
+only after an actual GitHub Actions run. These commands describe reproduction;
+they do not report a passing result.
 
 ## Guided demo and terminal review
 

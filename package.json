@@ -1,6 +1,6 @@
 {
   "name": "secureops-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "An experimental personal hobby project for fictional cloud governance workflows over MCP",
   "type": "module",
@@ -22,7 +22,7 @@
     "format:check": "prettier --check src scripts/demo-local.ts scripts/smoke-stdio.mjs tests eslint.config.js vitest.config.ts package.json tsconfig.json tsconfig.test.json .prettierrc.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run format:check"
+    "check": "npm run lint && npm run typecheck && npm run test:coverage && npm run build && npm run format:check"
   },
   "dependencies": {
     "@inquirer/prompts": "8.7.3",

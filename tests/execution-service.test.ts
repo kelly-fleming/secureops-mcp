@@ -6,7 +6,12 @@ import { ProposalService } from '../src/application/proposal-service.js';
 import { ReviewService } from '../src/application/review-service.js';
 import { loadConfig } from '../src/config.js';
 import type { ChangeAction } from '../src/domain/change.js';
-import { ConflictError, ForbiddenError } from '../src/domain/errors.js';
+import {
+  ConflictError,
+  ForbiddenError,
+  PreconditionError,
+  ValidationError,
+} from '../src/domain/errors.js';
 import { openConfiguredDatabase, type SqliteConnection } from '../src/infra/sqlite/connection.js';
 import { SqliteExecutionRepository } from '../src/infra/sqlite/execution-repository.js';
 import { SqliteProposalRepository } from '../src/infra/sqlite/proposal-repository.js';
@@ -66,10 +71,10 @@ async function reviewerActor(database: SqliteConnection): Promise<ActorContext> 
   return authenticateCliActor(database, 'reviewer', runtime);
 }
 
-async function approvedProposal(
+function pendingProposal(
   database: SqliteConnection,
   action: ChangeAction = { type: 'disable_compute' },
-): Promise<string> {
+): string {
   const request = buildProposalRequest();
   const proposalId = new ProposalService(
     database,
@@ -85,6 +90,14 @@ async function approvedProposal(
     agentActor(),
     { proposalId, justification: 'Independent review for this fictional change.' },
   );
+  return proposalId;
+}
+
+async function approvedProposal(
+  database: SqliteConnection,
+  action: ChangeAction = { type: 'disable_compute' },
+): Promise<string> {
+  const proposalId = pendingProposal(database, action);
   const reviewer = await reviewerActor(database);
   new ReviewService(database, createFixedClock(decidedAt), createSequentialIdGenerator()).review(
     reviewer,
@@ -111,6 +124,42 @@ function count(database: SqliteConnection, table: 'executions' | 'audit_events')
 }
 
 describe('simulated execution', () => {
+  it('refuses claimed approval and a forged approved status without a reviewer decision', async () => {
+    await withTestDatabase(
+      (database) => {
+        const proposalId = pendingProposal(database);
+        const service = executionService(database);
+        const actor = agentActor();
+        const resources = new SqliteResourceRepository(database);
+        const before = resources.getById(buildProposalRequest().resourceId);
+        if (before === null) throw new Error('Missing fictional compute resource.');
+        const auditBefore = count(database, 'audit_events');
+        const input = { proposalId, idempotencyKey: executionKey };
+
+        expect(() =>
+          service.executeChange(actor, {
+            ...input,
+            decision: 'approved',
+            reviewerId: 'identity-claimed-reviewer',
+          }),
+        ).toThrow(ValidationError);
+        expect(() => service.executeChange(actor, input)).toThrow(PreconditionError);
+
+        // Test-only storage tampering bypasses the normal authenticated review transition.
+        database.prepare("UPDATE proposals SET status = 'approved' WHERE id = ?").run(proposalId);
+        expect(() => service.executeChange(actor, input)).toThrow(PreconditionError);
+        expect(new SqliteProposalRepository(database).getById(proposalId)?.status).toBe('approved');
+        expect(database.prepare('SELECT COUNT(*) AS count FROM approval_decisions').get()).toEqual({
+          count: 0,
+        });
+        expect(count(database, 'executions')).toBe(0);
+        expect(count(database, 'audit_events')).toBe(auditBefore);
+        expect(resources.getById(buildProposalRequest().resourceId)).toEqual(before);
+      },
+      { seed: true },
+    );
+  });
+
   it.each([
     { name: 'disable', action: { type: 'disable_compute' } as const, expectedCost: 0 },
     {
@@ -245,7 +294,7 @@ describe('simulated execution', () => {
     );
   });
 
-  it('allows only one competing execution attempt through separate connections', async () => {
+  it('allows one execution across two serial calls on separate connections', async () => {
     await withTestDatabase(
       async (database) => {
         const proposalId = await approvedProposal(database);
@@ -266,6 +315,7 @@ describe('simulated execution', () => {
           const actor = agentActor();
           const first = executionService(database);
           const second = executionService(secondDatabase);
+          // better-sqlite3 is synchronous: these callbacks do not overlap their write locks.
           const outcomes = await Promise.allSettled([
             Promise.resolve().then(() =>
               first.executeChange(actor, {

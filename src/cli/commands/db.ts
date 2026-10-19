@@ -2,6 +2,7 @@ import { lstatSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createCliDiagnosticLogger, withCliDiagnostics } from '../diagnostics.js';
 import { loadConfig } from '../../config.js';
 import { openConfiguredDatabase } from '../../infra/sqlite/connection.js';
 import { applyMigrations, discoverMigrations } from '../../infra/sqlite/migrate.js';
@@ -102,7 +103,13 @@ function isDirectInvocation(): boolean {
 
 if (isDirectInvocation()) {
   try {
-    const result = runDatabaseCommand(process.argv.slice(2));
+    const args = process.argv.slice(2);
+    const operation = args[0] === 'seed' ? 'db:seed' : args[0] === 'reset' ? 'db:reset' : null;
+    const run = () => runDatabaseCommand(args);
+    const result =
+      operation === null
+        ? run()
+        : await withCliDiagnostics(createCliDiagnosticLogger(process.env), operation, run);
     process.stdout.write(
       `${result.action === 'seed' ? 'Seeded' : 'Restored'} ${result.resourceCount} demo resources.\n`,
     );

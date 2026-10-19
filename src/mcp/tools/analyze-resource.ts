@@ -24,6 +24,7 @@ export const registerAnalyzeResourceTool: McpToolRegistrar = (server, context) =
         analyzeResourceInputSchema,
         analyzeResourceOutputSchema,
         (request) => resourceService.analyzeResource(context.actor, request),
+        { logger: context.logger, operation: 'analyze_resource' },
       ),
   );
 };

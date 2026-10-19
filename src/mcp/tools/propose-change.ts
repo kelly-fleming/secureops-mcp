@@ -29,6 +29,7 @@ export const registerProposeChangeTool: McpToolRegistrar = (server, context) => 
         proposeChangeInputSchema,
         proposeChangeOutputSchema,
         (request) => proposalService.proposeChange(context.actor, request),
+        { logger: context.logger, operation: 'propose_change' },
       ),
   );
 };

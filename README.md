@@ -18,9 +18,11 @@ docker compose run --rm -T checks
 docker compose run --rm -T secureops npm run db:seed -- --db-path data/demo/secureops-demo.db
 ```
 
-The check command should finish successfully; seed reports twelve resources on
-a fresh database. To try proposal creation, human review, and simulated execution,
-follow the [Docker guided demo](docs/docker.md#guided-demo-and-terminal-review).
+The combined check runs coverage once and enforces 80% aggregate line and branch
+coverage separately for application, domain, and security source. Seed reports
+twelve resources on a fresh database. To try proposal creation, human review,
+and simulated execution, follow the
+[Docker guided demo](docs/docker.md#guided-demo-and-terminal-review).
 Its setup resets only the disposable Docker demo database. This is a terminal
 and MCP application; there is no browser UI, localhost URL, or cloud account setup.
 MCP clients launch `docker compose run --rm -T secureops` from this repository root;
@@ -83,15 +85,17 @@ npm run cli -- proposals:review --db-path data/demo/secureops-demo.db --proposal
 npm run demo:local -- resume --proposal-id "$proposal_id"
 ```
 
-Replace the sample ID with the value printed by the runner. The reviewer CLI asks for a masked passphrase and an approval or rejection; the MCP agent cannot decide it. On first execution, resume uses the existing proposal without resetting the database and changes synthetic state only if the reviewer approved and current policy and resource state still permit it. An exact repeat of a completed resume returns the saved execution without another change. See [demo reset and resume behavior](docs/seed-reset.md) and [CLI review guidance](docs/cli.md) before rerunning setup.
+Replace the sample ID with the value printed by the runner. The reviewer CLI asks for a masked passphrase and an approval or rejection; the MCP agent cannot decide it. On first execution, resume uses the existing proposal without resetting the database and changes synthetic state only if the reviewer approved and current policy and resource state still permit it. An authorized exact repeat of a completed resume returns the saved execution without another change or a fresh policy check. See [demo reset and resume behavior](docs/seed-reset.md) and [CLI review guidance](docs/cli.md) before rerunning setup.
 
 ## Runtime and checks
 
 The app uses Node 24, TypeScript, Zod, and local SQLite. MCP runs over stdio
 using `@modelcontextprotocol/server` 2.3.1. There is no runnable HTTP listener.
 
-`npm run check` runs lint, typechecks, tests, build, and formatting checks.
-`npm run test:coverage` runs the separate coverage check. Use
+`npm run check` runs lint, typechecks, the full test suite with coverage once,
+build, and formatting checks. Coverage reports all `src/**/*.ts` files and
+enforces the scoped thresholds described in the [Docker check guide](docs/docker.md#direct-docker-commands).
+`npm run test:coverage` runs that coverage gate alone. Use
 `docker compose run --rm -T checks` to run the combined checks without host
 dependencies. This is experimental software; passing checks are not a guarantee
 of production suitability.

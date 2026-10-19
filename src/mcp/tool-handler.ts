@@ -1,7 +1,12 @@
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { z } from 'zod';
 
-import { InternalError, ValidationError } from '../domain/errors.js';
+import { InternalError, ValidationError, publicErrorFor } from '../domain/errors.js';
+import {
+  startDiagnosticScope,
+  type DiagnosticLogger,
+  type DiagnosticOperation,
+} from '../infra/logging/logger.js';
 import { toToolErrorResult } from './tool-result.js';
 
 type DeepReadonly<T> = T extends readonly (infer Item)[]
@@ -12,6 +17,11 @@ type DeepReadonly<T> = T extends readonly (infer Item)[]
 
 type ToolOperationResult<Output> = Output | DeepReadonly<Output>;
 
+interface ToolDiagnostics {
+  readonly logger: DiagnosticLogger | undefined;
+  readonly operation: DiagnosticOperation;
+}
+
 /** Parse at the tool boundary and return matching text and structured results. */
 export async function handleStructuredToolCall<Input, Output extends Record<string, unknown>>(
   input: unknown,
@@ -20,18 +30,32 @@ export async function handleStructuredToolCall<Input, Output extends Record<stri
   operation: (
     parsedInput: Input,
   ) => ToolOperationResult<Output> | Promise<ToolOperationResult<Output>>,
+  diagnostics?: ToolDiagnostics,
 ): Promise<CallToolResult> {
+  const scope =
+    diagnostics === undefined
+      ? undefined
+      : startDiagnosticScope(diagnostics.logger, diagnostics.operation);
+  scope?.record('info', 'started');
+  let ids: { resourceId?: unknown; proposalId?: unknown } = {};
   try {
     const parsedInput = inputSchema.safeParse(input);
     if (!parsedInput.success) throw new ValidationError();
+    if (typeof parsedInput.data === 'object' && parsedInput.data !== null) {
+      const request = parsedInput.data as { resourceId?: unknown; proposalId?: unknown };
+      ids = { resourceId: request.resourceId, proposalId: request.proposalId };
+    }
     const result = await operation(parsedInput.data);
     const parsedOutput = outputSchema.safeParse(result);
     if (!parsedOutput.success) throw new InternalError();
-    return {
+    const response: CallToolResult = {
       content: [{ type: 'text', text: JSON.stringify(parsedOutput.data) }],
       structuredContent: parsedOutput.data,
     };
+    scope?.record('info', 'succeeded', ids);
+    return response;
   } catch (error) {
+    scope?.record('error', 'failed', { ...ids, errorCode: publicErrorFor(error).code });
     return toToolErrorResult(error);
   }
 }

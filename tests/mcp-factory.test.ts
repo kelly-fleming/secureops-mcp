@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { loadConfig } from '../src/config.js';
 import { ForbiddenError } from '../src/domain/errors.js';
+import { createDiagnosticLogger } from '../src/infra/logging/logger.js';
 import { openConfiguredDatabase, type SqliteConnection } from '../src/infra/sqlite/connection.js';
 import {
   createMcpServer,
@@ -14,6 +15,7 @@ import {
   type McpToolRegistrar,
 } from '../src/mcp/server.js';
 import { handleStructuredToolCall } from '../src/mcp/tool-handler.js';
+import { projectIdentity, projectLockIdentity } from './helpers/project-metadata.js';
 import { withTestDatabase } from './helpers/test-db.js';
 
 const allToolNames = [...sharedToolNames, ...localToolNames];
@@ -56,6 +58,11 @@ function registrars(
 }
 
 describe('injectable MCP server factory', () => {
+  it('keeps package and lockfile root identities aligned', () => {
+    expect(projectLockIdentity).toMatchObject(projectIdentity);
+    expect(projectLockIdentity.packages['']).toMatchObject(projectIdentity);
+  });
+
   it('registers each local slot on an isolated server with its own issued actor and connection', async () => {
     await withTestDatabase(async (database) => {
       const config = loadConfig(
@@ -81,11 +88,13 @@ describe('injectable MCP server factory', () => {
         expect(names).toEqual(allToolNames);
         expect(names).not.toContain('decide_proposal');
         expect(names).not.toContain('approve_proposal');
+        expect(client.getServerVersion()).toMatchObject(projectIdentity);
         expect(client.getServerCapabilities()?.tools).toBeDefined();
         const call = await client.callTool({ name: 'list_resources', arguments: {} });
         expect(call).toMatchObject({ content: [{ type: 'text', text: 'agent' }] });
       });
       await withClient(second, async (client) => {
+        expect(client.getServerVersion()).toMatchObject(projectIdentity);
         expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(allToolNames);
       });
       expect(seen).toHaveLength(allToolNames.length * 2);
@@ -121,6 +130,7 @@ describe('injectable MCP server factory', () => {
           expect(names).toEqual([...sharedToolNames]);
           expect(names).not.toContain('request_approval');
           expect(names).not.toContain('decide_proposal');
+          expect(client.getServerVersion()).toMatchObject(projectIdentity);
           expect(client.getServerCapabilities()?.tools).toBeDefined();
           const call = await client.callTool({ name: 'list_resources', arguments: {} });
           expect(call).toMatchObject({ content: [{ type: 'text', text: 'viewer' }] });
@@ -235,5 +245,52 @@ describe('structured MCP handler boundary', () => {
     });
     expect(thrown.isError).toBe(true);
     expect(JSON.stringify(thrown)).not.toContain(secret);
+  });
+
+  it('records only bounded tool diagnostics and keeps logger sink failures out of results', async () => {
+    const lines: string[] = [];
+    let id = 0;
+    const logger = createDiagnosticLogger({
+      level: 'info',
+      sink: {
+        write(line) {
+          lines.push(line);
+          throw new Error('diagnostic sink failed');
+        },
+      },
+      clock: { now: () => new Date('2026-10-18T00:00:00.000Z') },
+      ids: { nextId: () => `trace-000${++id}` },
+    });
+    const secret = 'password=fictional-private-value';
+    const successful = await handleStructuredToolCall(
+      { count: 3 },
+      inputSchema,
+      outputSchema,
+      ({ count }) => ({ doubled: count * 2 }),
+      { logger, operation: 'list_resources' },
+    );
+    const failed = await handleStructuredToolCall(
+      { count: 3 },
+      inputSchema,
+      outputSchema,
+      () => {
+        throw new Error(secret);
+      },
+      { logger, operation: 'list_resources' },
+    );
+
+    expect(successful.structuredContent).toEqual({ doubled: 6 });
+    expect(failed.structuredContent).toEqual({
+      error: { code: 'INTERNAL_ERROR', message: 'An internal error occurred.' },
+    });
+    const records = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(records.map(({ event, correlationId }) => ({ event, correlationId }))).toEqual([
+      { event: 'started', correlationId: 'trace-0001' },
+      { event: 'succeeded', correlationId: 'trace-0001' },
+      { event: 'started', correlationId: 'trace-0002' },
+      { event: 'failed', correlationId: 'trace-0002' },
+    ]);
+    expect(records[3]).toMatchObject({ errorCode: 'INTERNAL_ERROR', errorCategory: 'internal' });
+    expect(lines.join('')).not.toContain(secret);
   });
 });

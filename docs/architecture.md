@@ -38,6 +38,8 @@ The diagram shows two separate sources of authority. `createMcpServer` derives t
 
 CLI commands select an existing local database explicitly for protected review and audit operations, own and close their connections, and authenticate a human for each protected invocation. The HTTP demo configuration and read-only factory boundary do not make a writable HTTP workflow or a runnable listener. For command and mode details, see [local setup](local-setup.md) and [permissions](permissions.md).
 
+`src/infra/logging/logger.ts` accepts an injected sink, clock, ID source, and validated log level. The local stdio entry passes one logger through the server context; each handled tool call gets a correlation scope. The CLI router and dedicated command entries scope their own operations. Logging constructs only fixed fields and validated synthetic IDs, sends runtime records to stderr, and does not participate in workflow audit transactions. A logging failure is contained so it cannot change a tool or command result.
+
 ## State and transaction ownership
 
 The application service owns each workflow's immediate SQLite write transaction. Proposal creation reads the current resource, previews the allowlisted action, evaluates current policy, and inserts a draft with an audit event on the same connection. An exact draft replay returns its original identity without another creation event. Requesting approval rechecks the resource version and policy before moving that draft to `pending_approval`; the transition and audit append commit together.

@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createCliDiagnosticLogger, withCliDiagnostics } from '../diagnostics.js';
 import { loadConfig } from '../../config.js';
 import { openConfiguredDatabase } from '../../infra/sqlite/connection.js';
 import {
@@ -57,7 +58,11 @@ function isDirectInvocation(): boolean {
 
 if (isDirectInvocation()) {
   try {
-    const result = runMigrationCommand(process.argv.slice(2));
+    const result = await withCliDiagnostics(
+      createCliDiagnosticLogger(process.env),
+      'db:migrate',
+      () => runMigrationCommand(process.argv.slice(2)),
+    );
     process.stdout.write(
       `Applied ${result.applied} migration(s); schema version ${result.currentVersion}.\n`,
     );

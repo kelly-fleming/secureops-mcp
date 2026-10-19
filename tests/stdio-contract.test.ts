@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { projectIdentity } from './helpers/project-metadata.js';
 import { withTestDatabase } from './helpers/test-db.js';
 
 const timeoutMs = 10_000;
@@ -36,6 +37,7 @@ describe('local stdio entry point', () => {
             ...process.env,
             SECUREOPS_MODE: 'local-full',
             SECUREOPS_DB_PATH: database.name,
+            SECUREOPS_LOG_LEVEL: 'info',
           },
           stdio: ['pipe', 'pipe', 'pipe'],
           windowsHide: true,
@@ -44,9 +46,12 @@ describe('local stdio entry point', () => {
 
       const frames: unknown[] = [];
       const invalidLines: string[] = [];
+      const diagnostics: unknown[] = [];
+      const invalidDiagnosticLines: string[] = [];
       const replies = new Map<number, unknown>();
       const waiting = new Map<number, (frame: unknown) => void>();
       let stdoutBuffer = '';
+      let stderrBuffer = '';
       let spawnError: Error | undefined;
       child.on('error', (error) => {
         spawnError = error;
@@ -90,8 +95,22 @@ describe('local stdio entry point', () => {
           newline = stdoutBuffer.indexOf('\n');
         }
       });
-      // stderr is separate from protocol stdout and is drained even on a failing child.
-      child.stderr.resume();
+      // Diagnostics are a separate JSON-lines stream; drain it even on failure.
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk: string) => {
+        stderrBuffer += chunk;
+        let newline = stderrBuffer.indexOf('\n');
+        while (newline !== -1) {
+          const line = stderrBuffer.slice(0, newline);
+          stderrBuffer = stderrBuffer.slice(newline + 1);
+          try {
+            diagnostics.push(JSON.parse(line) as unknown);
+          } catch {
+            invalidDiagnosticLines.push(line);
+          }
+          newline = stderrBuffer.indexOf('\n');
+        }
+      });
 
       const response = (id: number): Promise<unknown> => {
         const existing = replies.get(id);
@@ -124,7 +143,7 @@ describe('local stdio entry point', () => {
         expect(initialized).toMatchObject({
           jsonrpc: '2.0',
           id: 1,
-          result: { serverInfo: { name: 'secureops-mcp' }, capabilities: { tools: {} } },
+          result: { serverInfo: projectIdentity, capabilities: { tools: {} } },
         });
 
         request({ method: 'notifications/initialized' });
@@ -160,12 +179,58 @@ describe('local stdio entry point', () => {
         expect(toolNames).not.toContain('approve_proposal');
         expect(toolNames).not.toContain('reject_proposal');
 
+        request({ id: 3, method: 'tools/call', params: { name: 'list_resources', arguments: {} } });
+        const listResult = await withinTimeout(response(3), 'list_resources response');
+        expect(listResult).toMatchObject({
+          jsonrpc: '2.0',
+          id: 3,
+          result: { content: expect.any(Array) },
+        });
+
+        request({
+          id: 4,
+          method: 'tools/call',
+          params: { name: 'get_resource', arguments: { resourceId: 'res-absent' } },
+        });
+        const missingResult = await withinTimeout(response(4), 'get_resource response');
+        expect(missingResult).toMatchObject({
+          jsonrpc: '2.0',
+          id: 4,
+          result: { isError: true, structuredContent: { error: { code: 'NOT_FOUND' } } },
+        });
+
         child.stdin.end();
         const exit = await withinTimeout(closed, 'stdio shutdown');
         expect(spawnError).toBeUndefined();
         expect(exit).toEqual({ code: 0, signal: null });
         expect(stdoutBuffer).toBe('');
+        expect(stderrBuffer).toBe('');
         expect(invalidLines).toEqual([]);
+        expect(invalidDiagnosticLines).toEqual([]);
+        const toolDiagnostics = diagnostics.filter(
+          (record): record is Record<string, unknown> =>
+            typeof record === 'object' &&
+            record !== null &&
+            'operation' in record &&
+            record.operation !== 'stdio',
+        );
+        expect(toolDiagnostics).toEqual([
+          expect.objectContaining({ operation: 'list_resources', event: 'started' }),
+          expect.objectContaining({ operation: 'list_resources', event: 'succeeded' }),
+          expect.objectContaining({ operation: 'get_resource', event: 'started' }),
+          expect.objectContaining({
+            operation: 'get_resource',
+            event: 'failed',
+            errorCode: 'NOT_FOUND',
+            resourceId: 'res-absent',
+          }),
+        ]);
+        expect(toolDiagnostics[0]?.correlationId).toBe(toolDiagnostics[1]?.correlationId);
+        expect(toolDiagnostics[2]?.correlationId).toBe(toolDiagnostics[3]?.correlationId);
+        expect(toolDiagnostics[0]?.correlationId).not.toBe(toolDiagnostics[2]?.correlationId);
+        expect(diagnostics).toContainEqual(
+          expect.objectContaining({ operation: 'stdio', event: 'stopped' }),
+        );
         expect(frames.length).toBeGreaterThanOrEqual(2);
         for (const frame of frames) {
           expect(frame).toMatchObject({ jsonrpc: '2.0' });
