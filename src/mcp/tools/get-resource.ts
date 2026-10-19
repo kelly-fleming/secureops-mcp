@@ -19,8 +19,12 @@ export const registerGetResourceTool: McpToolRegistrar = (server, context) => {
       outputSchema: getResourceOutputSchema,
     },
     (input) =>
-      handleStructuredToolCall(input, getResourceInputSchema, getResourceOutputSchema, (request) =>
-        resourceService.getResource(context.actor, request),
+      handleStructuredToolCall(
+        input,
+        getResourceInputSchema,
+        getResourceOutputSchema,
+        (request) => resourceService.getResource(context.actor, request),
+        { logger: context.logger, operation: 'get_resource' },
       ),
   );
 };

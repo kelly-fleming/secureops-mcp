@@ -32,6 +32,19 @@ function agentActor(): ActorContext {
   return createMcpActor(loadConfig({ SECUREOPS_MODE: 'local-full' }, process.cwd()));
 }
 
+function viewerActor(): ActorContext {
+  return createMcpActor(
+    loadConfig(
+      {
+        SECUREOPS_MODE: 'http-demo',
+        SECUREOPS_HTTP_ALLOWED_ORIGINS: 'http://127.0.0.1:3000',
+        SECUREOPS_HTTP_AUTH_TOKEN: 'a'.repeat(32),
+      },
+      process.cwd(),
+    ),
+  );
+}
+
 function createPendingProposal(
   database: SqliteConnection,
   action: ChangeAction = { type: 'disable_compute' },
@@ -57,9 +70,10 @@ function createPendingProposal(
   return proposalId;
 }
 
-async function authenticateReviewer(
+async function enrollAndAuthenticateActor(
   database: SqliteConnection,
   username: string,
+  role: 'reviewer' | 'auditor' = 'reviewer',
 ): Promise<ActorContext> {
   const verifier = await derivePasswordVerifier(passphrase);
   try {
@@ -70,12 +84,13 @@ async function authenticateReviewer(
         id, username, role, disabled, password_kdf, password_salt,
         password_verifier, scrypt_cost, scrypt_block_size,
         scrypt_parallelization, created_at, updated_at
-      ) VALUES (?, ?, 'reviewer', 0, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       )
       .run(
         `identity-${username}`,
         username,
+        role,
         verifier.passwordKdf,
         verifier.passwordSalt,
         verifier.passwordVerifier,
@@ -95,7 +110,7 @@ async function authenticateReviewer(
     askPassphrase: async () => passphrase,
     delay: async () => undefined,
   };
-  return authenticateCliActor(database, 'reviewer', runtime);
+  return authenticateCliActor(database, role, runtime);
 }
 
 function reviewService(database: SqliteConnection, loadPolicy = loadDemoPolicy): ReviewService {
@@ -119,7 +134,7 @@ describe('human review decisions', () => {
     await withTestDatabase(
       async (database) => {
         const proposalId = createPendingProposal(database);
-        const actor = await authenticateReviewer(database, 'reviewer_one');
+        const actor = await enrollAndAuthenticateActor(database, 'reviewer_one');
         const resources = new SqliteResourceRepository(database);
         const resourceBefore = resources.getById(buildProposalRequest().resourceId);
         const result = reviewService(database).review(actor, {
@@ -154,7 +169,7 @@ describe('human review decisions', () => {
     await withTestDatabase(
       async (database) => {
         const proposalId = createPendingProposal(database);
-        const actor = await authenticateReviewer(database, 'reviewer_one');
+        const actor = await enrollAndAuthenticateActor(database, 'reviewer_one');
         const service = reviewService(database);
         expect(
           service.review(actor, { proposalId, decision: 'rejected', reason: reviewReason }).status,
@@ -176,7 +191,7 @@ describe('human review decisions', () => {
     await withTestDatabase(
       async (database) => {
         const proposalId = createPendingProposal(database);
-        const actor = await authenticateReviewer(database, 'reviewer_one');
+        const actor = await enrollAndAuthenticateActor(database, 'reviewer_one');
         const resources = new SqliteResourceRepository(database);
         const current = resources.getById(buildProposalRequest().resourceId);
         if (current === null) throw new Error('Missing fictional compute resource.');
@@ -205,7 +220,7 @@ describe('human review decisions', () => {
           type: 'resize_compute',
           targetSize: 'demo-medium',
         });
-        const actor = await authenticateReviewer(database, 'reviewer_one');
+        const actor = await enrollAndAuthenticateActor(database, 'reviewer_one');
         const original = loadDemoPolicy();
         const tightened = demoPolicySchema.parse({
           ...original,
@@ -237,7 +252,7 @@ describe('human review decisions', () => {
     await withTestDatabase(
       async (database) => {
         const proposalId = createPendingProposal(database);
-        const actor = await authenticateReviewer(database, 'reviewer_one');
+        const actor = await enrollAndAuthenticateActor(database, 'reviewer_one');
         // Simulate out-of-band state drift without a version bump to isolate preview eligibility.
         database
           .prepare('UPDATE resources SET protected_from_changes = 1 WHERE id = ?')
@@ -262,7 +277,7 @@ describe('human review decisions', () => {
     await withTestDatabase(
       async (database) => {
         const proposalId = createPendingProposal(database);
-        const actor = await authenticateReviewer(database, 'reviewer_one');
+        const actor = await enrollAndAuthenticateActor(database, 'reviewer_one');
         const service = reviewService(database);
         expect(() =>
           service.review(agentActor(), { proposalId, decision: 'approved', reason: reviewReason }),
@@ -293,12 +308,45 @@ describe('human review decisions', () => {
     );
   });
 
-  it('allows only one of two competing reviewer connections to decide a proposal', async () => {
+  it('refuses a viewer, an authenticated auditor, and a reviewer disabled after authentication', async () => {
     await withTestDatabase(
       async (database) => {
         const proposalId = createPendingProposal(database);
-        const firstActor = await authenticateReviewer(database, 'reviewer_one');
-        const secondActor = await authenticateReviewer(database, 'reviewer_two');
+        const auditor = await enrollAndAuthenticateActor(database, 'auditor_one', 'auditor');
+        const reviewer = await enrollAndAuthenticateActor(database, 'reviewer_one');
+        const service = reviewService(database);
+        const resources = new SqliteResourceRepository(database);
+        const before = resources.getById(buildProposalRequest().resourceId);
+        if (before === null) throw new Error('Missing fictional compute resource.');
+        const auditBefore = database.prepare('SELECT COUNT(*) AS count FROM audit_events').get();
+        const decisionInput = { proposalId, decision: 'approved', reason: reviewReason } as const;
+
+        expect(() => service.review(viewerActor(), { invalid: true })).toThrow(ForbiddenError);
+        expect(() => service.review(auditor, decisionInput)).toThrow(ForbiddenError);
+        database
+          .prepare('UPDATE local_identities SET disabled = 1 WHERE id = ?')
+          .run(reviewer.actorId);
+        expect(() => service.review(reviewer, decisionInput)).toThrow(ForbiddenError);
+
+        expect(new SqliteProposalRepository(database).getById(proposalId)?.status).toBe(
+          'pending_approval',
+        );
+        expect(decisionCount(database)).toBe(0);
+        expect(resources.getById(buildProposalRequest().resourceId)).toEqual(before);
+        expect(database.prepare('SELECT COUNT(*) AS count FROM audit_events').get()).toEqual(
+          auditBefore,
+        );
+      },
+      { seed: true },
+    );
+  });
+
+  it('allows one decision across two serial reviewer calls on separate connections', async () => {
+    await withTestDatabase(
+      async (database) => {
+        const proposalId = createPendingProposal(database);
+        const firstActor = await enrollAndAuthenticateActor(database, 'reviewer_one');
+        const secondActor = await enrollAndAuthenticateActor(database, 'reviewer_two');
         const databases = database.pragma('database_list') as { name: string; file: string }[];
         const mainPath = databases.find((entry) => entry.name === 'main')?.file;
         if (mainPath === undefined) throw new Error('Missing private test database path.');
@@ -314,6 +362,7 @@ describe('human review decisions', () => {
         const first = reviewService(database);
         try {
           const second = reviewService(secondDatabase);
+          // better-sqlite3 is synchronous: these callbacks run one after the other on this thread.
           const results = await Promise.allSettled([
             Promise.resolve().then(() =>
               first.review(firstActor, {
@@ -345,20 +394,20 @@ describe('human review decisions', () => {
     );
   });
 
-  it('rolls back decision and status when a later workflow write fails', async () => {
+  it('rolls back decision and status under a failed enclosing test transaction', async () => {
     await withTestDatabase(
       async (database) => {
         const proposalId = createPendingProposal(database);
-        const actor = await authenticateReviewer(database, 'reviewer_one');
+        const actor = await enrollAndAuthenticateActor(database, 'reviewer_one');
         const workflow = database.transaction(() => {
           reviewService(database).review(actor, {
             proposalId,
             decision: 'approved',
             reason: reviewReason,
           });
-          throw new Error('Synthetic audit append failure');
+          throw new Error('Synthetic outer transaction failure');
         });
-        expect(() => workflow.immediate()).toThrow('Synthetic audit append failure');
+        expect(() => workflow.immediate()).toThrow('Synthetic outer transaction failure');
         expect(new SqliteProposalRepository(database).getById(proposalId)?.status).toBe(
           'pending_approval',
         );

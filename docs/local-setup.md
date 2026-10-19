@@ -24,7 +24,7 @@ The seed command creates the exact disposable demo database, applies the numbere
 
 The compiled local stdio entry is `node dist/mcp/stdio.js`. It reads `SECUREOPS_MODE=local-full` (the default) and `SECUREOPS_DB_PATH` from its own process environment. If `SECUREOPS_DB_PATH` is absent, it selects `data/secureops.db`, which is a different database from the seeded demo file. A relative path is resolved from the server process's working directory, which an editor or Inspector may set differently from your terminal. Configure the client to pass the absolute demo path and local-full mode to the server process. Keep its command pointed at the compiled entry in this repository.
 
-The server uses stdout for MCP JSON-RPC traffic. Any startup or shutdown errors are written to stderr so they cannot corrupt that protocol stream. Launch it through an MCP client to discover and call its tools; running the stdio entry in a terminal is not an interactive application menu.
+The server uses stdout for MCP JSON-RPC traffic. Structured operational diagnostics go to stderr, including server lifecycle events and tool calls handled by the application. `SECUREOPS_LOG_LEVEL` accepts `silent`, `error`, `warn`, `info` (the default), or `debug`; `silent` suppresses structured records. Each recorded operation has an application-generated correlation ID. Records contain fixed event names, safe failure codes, and validated synthetic IDs when available, never tool input or output. Fatal startup or shutdown messages may also appear on stderr. These records are separate from the transactional audit history. Launch the server through an MCP client to discover and call its tools; running the stdio entry in a terminal is not an interactive application menu.
 
 ## Connect from VS Code
 

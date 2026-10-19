@@ -31,6 +31,20 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ SECUREOPS_MODE: 'admin' }, workingDirectory)).toThrow(ConfigError);
   });
 
+  it.each(['silent', 'error', 'warn', 'info', 'debug'] as const)(
+    'accepts the %s diagnostic level in local and HTTP configuration',
+    (level) => {
+      expect(loadConfig({ SECUREOPS_LOG_LEVEL: level }, workingDirectory).logLevel).toBe(level);
+      expect(
+        loadConfig(httpEnvironment({ SECUREOPS_LOG_LEVEL: level }), workingDirectory).logLevel,
+      ).toBe(level);
+    },
+  );
+
+  it.each(['', 'off', 'trace', 'ERROR'])('rejects the unknown diagnostic level %s', (level) => {
+    expect(() => loadConfig({ SECUREOPS_LOG_LEVEL: level }, workingDirectory)).toThrow(ConfigError);
+  });
+
   it.each(['0', '65536', '-1', '1.5', 'abc'])('rejects invalid HTTP port %s', (port) => {
     expect(() =>
       loadConfig(httpEnvironment({ SECUREOPS_HTTP_PORT: port }), workingDirectory),

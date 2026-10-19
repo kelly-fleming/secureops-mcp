@@ -18,8 +18,12 @@ export const registerGetAuditLogTool: McpToolRegistrar = (server, context) => {
       outputSchema: getAuditLogOutputSchema,
     },
     (input) =>
-      handleStructuredToolCall(input, getAuditLogInputSchema, getAuditLogOutputSchema, (request) =>
-        auditService.getAuditLog(context.actor, request),
+      handleStructuredToolCall(
+        input,
+        getAuditLogInputSchema,
+        getAuditLogOutputSchema,
+        (request) => auditService.getAuditLog(context.actor, request),
+        { logger: context.logger, operation: 'get_audit_log' },
       ),
   );
 };

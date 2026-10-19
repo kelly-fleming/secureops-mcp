@@ -18,7 +18,7 @@ real infrastructure.
 | Actor | Access | Boundary |
 | --- | --- | --- |
 | Local MCP agent | Inspect, preview, propose, request review, and simulate an approved change | Cannot approve or reject; identity claims in tool input grant no authority. |
-| Human reviewer | Authenticated interactive CLI | May approve or reject eligible pending proposals; cannot review their own proposal. |
+| Human reviewer | Authenticated interactive CLI | May approve an eligible pending proposal or reject a pending proposal even if its preview or policy now denies it; either decision requires the expected resource version to match, and self-review is forbidden. |
 | Human auditor | Authenticated interactive CLI | May inspect and verify audit records without approval authority. |
 | Internal HTTP viewer context | Read-only server factory | Resource read registrations only; no runnable HTTP listener. |
 

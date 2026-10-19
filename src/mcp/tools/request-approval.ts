@@ -25,6 +25,7 @@ export const registerRequestApprovalTool: McpToolRegistrar = (server, context) =
         requestApprovalInputSchema,
         requestApprovalOutputSchema,
         (request) => approvalRequestService.requestApproval(context.actor, request),
+        { logger: context.logger, operation: 'request_approval' },
       ),
   );
 };

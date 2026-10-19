@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { input, password } from '@inquirer/prompts';
 
+import { createCliDiagnosticLogger, withCliDiagnostics } from '../diagnostics.js';
 import { loadConfig } from '../../config.js';
 import { openConfiguredDatabase, type SqliteConnection } from '../../infra/sqlite/connection.js';
 import {
@@ -176,7 +177,11 @@ function isDirectInvocation(): boolean {
 
 if (isDirectInvocation()) {
   try {
-    const result = await runReviewerInitCommand(process.argv.slice(2));
+    const result = await withCliDiagnostics(
+      createCliDiagnosticLogger(process.env),
+      'reviewer:init',
+      () => runReviewerInitCommand(process.argv.slice(2)),
+    );
     process.stdout.write(`Enrolled local reviewer ${result.username}.\n`);
   } catch (error) {
     const message =

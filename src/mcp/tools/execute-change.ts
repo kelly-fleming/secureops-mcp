@@ -23,6 +23,7 @@ export const registerExecuteChangeTool: McpToolRegistrar = (server, context) => 
         executeChangeInputSchema,
         executeChangeOutputSchema,
         (request) => executionService.executeChange(context.actor, request),
+        { logger: context.logger, operation: 'execute_change' },
       ),
   );
 };

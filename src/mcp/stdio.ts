@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +7,12 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio, type StdioServerHandle } from '@modelcontextprotocol/server/stdio';
 
 import { ConfigError, loadConfig } from '../config.js';
+import { publicErrorFor } from '../domain/errors.js';
+import {
+  createDiagnosticLogger,
+  startDiagnosticScope,
+  type DiagnosticLogger,
+} from '../infra/logging/logger.js';
 import { openConfiguredDatabase } from '../infra/sqlite/connection.js';
 import { applyMigrations, discoverMigrations } from '../infra/sqlite/migrate.js';
 import { createMcpServer, type McpServerDependencies } from './server.js';
@@ -22,6 +29,7 @@ export interface LocalStdioOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly workingDirectory?: string;
   readonly toolRegistrars?: McpServerDependencies['toolRegistrars'];
+  readonly logger?: DiagnosticLogger;
 }
 
 /** Validate once, then construct an independently owned server and database per SDK invocation. */
@@ -31,6 +39,18 @@ export function createLocalStdioServerFactory(options: LocalStdioOptions = {}): 
     options.workingDirectory ?? process.cwd(),
   );
   if (config.mode !== 'local-full') throw new ConfigError('Local stdio requires local-full mode.');
+  const logger =
+    options.logger ??
+    createDiagnosticLogger({
+      level: config.logLevel,
+      sink: {
+        write: (line) => {
+          process.stderr.write(line);
+        },
+      },
+      clock: { now: () => new Date() },
+      ids: { nextId: randomUUID },
+    });
   const migrations = discoverMigrations();
   const toolRegistrars: NonNullable<McpServerDependencies['toolRegistrars']> = {
     ...options.toolRegistrars,
@@ -45,17 +65,26 @@ export function createLocalStdioServerFactory(options: LocalStdioOptions = {}): 
   };
 
   return () => {
-    const database = openConfiguredDatabase(config);
+    const scope = startDiagnosticScope(logger, 'stdio');
+    scope.record('info', 'started');
+    let database: ReturnType<typeof openConfiguredDatabase> | undefined;
     try {
+      database = openConfiguredDatabase(config);
       applyMigrations(database, migrations);
-      const server = createMcpServer({ config, database, toolRegistrars }, 'local-full');
+      const server = createMcpServer({ config, database, logger, toolRegistrars }, 'local-full');
       // serveStdio may discard a discovery probe before pinning a second instance.
       server.server.onclose = () => {
-        if (database.open) database.close();
+        try {
+          if (database?.open) database.close();
+        } finally {
+          scope.record('info', 'stopped');
+        }
       };
+      scope.record('info', 'succeeded');
       return server;
     } catch (error) {
-      database.close();
+      if (database?.open) database.close();
+      scope.record('error', 'failed', { errorCode: publicErrorFor(error).code });
       throw error;
     }
   };

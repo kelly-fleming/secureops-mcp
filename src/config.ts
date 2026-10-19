@@ -4,7 +4,7 @@ import path from 'node:path';
 import { z } from 'zod';
 
 const modeSchema = z.enum(['local-full', 'http-demo']);
-const logLevelSchema = z.enum(['error', 'warn', 'info', 'debug']);
+const logLevelSchema = z.enum(['silent', 'error', 'warn', 'info', 'debug']);
 
 // Select only application-owned keys: process.env normally contains unrelated values.
 const environmentSchema = z.strictObject({
@@ -32,6 +32,12 @@ const invalidPathComponent = /[<>:"|?*\\\x00-\x1f]/;
 const reservedWindowsDevice = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 
 export type LogLevel = z.infer<typeof logLevelSchema>;
+
+/** Read only the validated diagnostic setting; command handlers still validate full config. */
+export function diagnosticLogLevel(environment: NodeJS.ProcessEnv): LogLevel | null {
+  const parsed = logLevelSchema.safeParse(environment.SECUREOPS_LOG_LEVEL ?? 'info');
+  return parsed.success ? parsed.data : null;
+}
 
 export interface LocalFullConfig {
   readonly mode: 'local-full';
