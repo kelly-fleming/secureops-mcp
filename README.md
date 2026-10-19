@@ -1,5 +1,7 @@
 # SecureOps MCP
 
+[![CI](https://github.com/kelly-fleming/secureops-mcp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kelly-fleming/secureops-mcp/actions/workflows/ci.yml)
+
 SecureOps MCP is my experimental personal hobby project for trying out cloud resource governance workflows through the Model Context Protocol (MCP). I work on it in my own time, independently of any company or commercial entity. It uses a local SQLite database of fictional AWS, Azure, and GCP resources to demonstrate deterministic analysis, policy previews, change proposals, independent human review, simulated execution, and audit records. The runnable local server communicates over stdio; every resource change stays in synthetic local state.
 
 **All resources, owners, utilization figures, and costs are invented.** This project does not connect to cloud accounts, change real infrastructure, calculate actual savings, certify compliance, or need provider credentials or a paid API key. Do not add customer data, real account identifiers, or secrets to its fixtures.
