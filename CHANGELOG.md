@@ -3,7 +3,7 @@
 Significant changes to this experimental personal hobby project are
 recorded here.
 
-## 0.2.0 - Unreleased
+## 0.2.0 - 2026-10-19
 
 ### Changed
 
