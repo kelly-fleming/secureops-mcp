@@ -56,7 +56,7 @@ export function createMcpServer(
   }
 
   const server = new McpServer(
-    { name: 'secureops-mcp', version: '0.2.0' },
+    { name: 'secureops-mcp', version: '0.3.0' },
     { capabilities: { tools: {} } },
   );
   const context: McpToolContext = Object.freeze({
