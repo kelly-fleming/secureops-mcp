@@ -1,0 +1,441 @@
+{
+  "description": "Illustrative authored examples, not captured MCP results or evidence of execution. Each steps[].input is tool arguments; each steps[].structuredContent is the structured MCP payload, without the content text envelope. Tool/schema names and narrative metadata are outside those payloads.",
+  "assumptions": "Unchanged version-1 fixture, demo-v1 policy, same local agent and selected database throughout. All generated IDs and timestamps are fictional stand-ins. Substitute actual returned IDs in a live session.",
+  "steps": [
+    {
+      "tool": "get_resource",
+      "input": {
+        "resourceId": "res-aws-ec2-01"
+      },
+      "structuredContent": {
+        "resource": {
+          "id": "res-aws-ec2-01",
+          "providerResourceId": "demo/aws/ec2/001",
+          "provider": "aws",
+          "kind": "ec2-instance",
+          "region": "us-east-1",
+          "environment": "development",
+          "owner": "team-sandbox",
+          "tags": {
+            "purpose": "sandbox",
+            "lifecycle": "idle"
+          },
+          "monthlyCostEstimateCents": 6900,
+          "utilizationEstimate": {
+            "metric": "cpu",
+            "percent": 0
+          },
+          "governance": {
+            "protectedFromChanges": false,
+            "hasRestrictedTag": false,
+            "hasPolicyViolation": false
+          },
+          "version": 1
+        }
+      }
+    },
+    {
+      "tool": "analyze_resource",
+      "input": {
+        "resourceId": "res-aws-ec2-01"
+      },
+      "structuredContent": {
+        "resourceId": "res-aws-ec2-01",
+        "observations": [
+          {
+            "code": "idle",
+            "confidence": "medium",
+            "message": "The fictional CPU estimate is zero in this snapshot."
+          }
+        ],
+        "estimatedMonthlyCostChangeCents": 0,
+        "recommendation": "Confirm sustained idleness with the owner before considering a simulated proposal.",
+        "simulationNotice": "Fictional demo data; estimates are not real bills or savings."
+      }
+    },
+    {
+      "tool": "evaluate_policy",
+      "input": {
+        "resourceId": "res-aws-ec2-01",
+        "action": {
+          "type": "disable_compute"
+        }
+      },
+      "structuredContent": {
+        "resourceId": "res-aws-ec2-01",
+        "action": {
+          "type": "disable_compute"
+        },
+        "evaluation": {
+          "allowed": true,
+          "approvalRequired": true,
+          "policyVersion": "demo-v1",
+          "findings": [
+            {
+              "ruleId": "deny_production",
+              "severity": "critical",
+              "result": "pass",
+              "rationale": "Production-labeled fictional resources are excluded from simulated changes."
+            },
+            {
+              "ruleId": "deny_restricted",
+              "severity": "critical",
+              "result": "pass",
+              "rationale": "Resources marked restricted are excluded from simulated changes."
+            },
+            {
+              "ruleId": "deny_protected",
+              "severity": "critical",
+              "result": "pass",
+              "rationale": "Protected fictional resources cannot be changed by the simulation."
+            },
+            {
+              "ruleId": "require_owner",
+              "severity": "warning",
+              "result": "pass",
+              "rationale": "Every resource change needs a nonempty normalized owner label."
+            },
+            {
+              "ruleId": "allow_actions",
+              "severity": "critical",
+              "result": "pass",
+              "rationale": "Only the two predefined simulated compute actions are supported."
+            },
+            {
+              "ruleId": "limit_cost_increase",
+              "severity": "warning",
+              "result": "pass",
+              "rationale": "A fictional monthly cost increase above the demo cap is denied."
+            },
+            {
+              "ruleId": "require_human_approval",
+              "severity": "critical",
+              "result": "approval_required",
+              "rationale": "Every simulated modification requires an independent authenticated CLI decision."
+            }
+          ]
+        },
+        "preview": {
+          "before": {
+            "id": "res-aws-ec2-01",
+            "providerResourceId": "demo/aws/ec2/001",
+            "provider": "aws",
+            "kind": "ec2-instance",
+            "region": "us-east-1",
+            "environment": "development",
+            "owner": "team-sandbox",
+            "tags": {
+              "purpose": "sandbox",
+              "lifecycle": "idle"
+            },
+            "monthlyCostEstimateCents": 6900,
+            "utilizationEstimate": {
+              "metric": "cpu",
+              "percent": 0
+            },
+            "governance": {
+              "protectedFromChanges": false,
+              "hasRestrictedTag": false,
+              "hasPolicyViolation": false
+            },
+            "version": 1
+          },
+          "after": {
+            "id": "res-aws-ec2-01",
+            "providerResourceId": "demo/aws/ec2/001",
+            "provider": "aws",
+            "kind": "ec2-instance",
+            "region": "us-east-1",
+            "environment": "development",
+            "owner": "team-sandbox",
+            "tags": {
+              "purpose": "sandbox",
+              "lifecycle": "idle"
+            },
+            "monthlyCostEstimateCents": 0,
+            "utilizationEstimate": {
+              "metric": "cpu",
+              "percent": 0
+            },
+            "governance": {
+              "protectedFromChanges": false,
+              "hasRestrictedTag": false,
+              "hasPolicyViolation": false
+            },
+            "version": 1
+          },
+          "estimatedMonthlyCostChangeCents": -6900
+        },
+        "simulationNotice": "Fictional demo data; estimates are not real bills or savings."
+      }
+    },
+    {
+      "tool": "propose_change",
+      "input": {
+        "resourceId": "res-aws-ec2-01",
+        "action": {
+          "type": "disable_compute"
+        },
+        "reason": "Portfolio example of an idle fictional development instance",
+        "idempotencyKey": "portfolio-propose-001"
+      },
+      "structuredContent": {
+        "proposalId": "proposal-walkthrough-001",
+        "status": "draft",
+        "preview": {
+          "before": {
+            "id": "res-aws-ec2-01",
+            "providerResourceId": "demo/aws/ec2/001",
+            "provider": "aws",
+            "kind": "ec2-instance",
+            "region": "us-east-1",
+            "environment": "development",
+            "owner": "team-sandbox",
+            "tags": {
+              "purpose": "sandbox",
+              "lifecycle": "idle"
+            },
+            "monthlyCostEstimateCents": 6900,
+            "utilizationEstimate": {
+              "metric": "cpu",
+              "percent": 0
+            },
+            "governance": {
+              "protectedFromChanges": false,
+              "hasRestrictedTag": false,
+              "hasPolicyViolation": false
+            },
+            "version": 1
+          },
+          "after": {
+            "id": "res-aws-ec2-01",
+            "providerResourceId": "demo/aws/ec2/001",
+            "provider": "aws",
+            "kind": "ec2-instance",
+            "region": "us-east-1",
+            "environment": "development",
+            "owner": "team-sandbox",
+            "tags": {
+              "purpose": "sandbox",
+              "lifecycle": "idle"
+            },
+            "monthlyCostEstimateCents": 0,
+            "utilizationEstimate": {
+              "metric": "cpu",
+              "percent": 0
+            },
+            "governance": {
+              "protectedFromChanges": false,
+              "hasRestrictedTag": false,
+              "hasPolicyViolation": false
+            },
+            "version": 1
+          },
+          "estimatedMonthlyCostChangeCents": -6900
+        },
+        "evaluation": {
+          "allowed": true,
+          "approvalRequired": true,
+          "policyVersion": "demo-v1",
+          "findings": [
+            {
+              "ruleId": "deny_production",
+              "severity": "critical",
+              "result": "pass",
+              "rationale": "Production-labeled fictional resources are excluded from simulated changes."
+            },
+            {
+              "ruleId": "deny_restricted",
+              "severity": "critical",
+              "result": "pass",
+              "rationale": "Resources marked restricted are excluded from simulated changes."
+            },
+            {
+              "ruleId": "deny_protected",
+              "severity": "critical",
+              "result": "pass",
+              "rationale": "Protected fictional resources cannot be changed by the simulation."
+            },
+            {
+              "ruleId": "require_owner",
+              "severity": "warning",
+              "result": "pass",
+              "rationale": "Every resource change needs a nonempty normalized owner label."
+            },
+            {
+              "ruleId": "allow_actions",
+              "severity": "critical",
+              "result": "pass",
+              "rationale": "Only the two predefined simulated compute actions are supported."
+            },
+            {
+              "ruleId": "limit_cost_increase",
+              "severity": "warning",
+              "result": "pass",
+              "rationale": "A fictional monthly cost increase above the demo cap is denied."
+            },
+            {
+              "ruleId": "require_human_approval",
+              "severity": "critical",
+              "result": "approval_required",
+              "rationale": "Every simulated modification requires an independent authenticated CLI decision."
+            }
+          ]
+        },
+        "simulationNotice": "Fictional demo data; estimates are not real bills or savings."
+      }
+    },
+    {
+      "tool": "request_approval",
+      "input": {
+        "proposalId": "proposal-walkthrough-001",
+        "justification": "Please independently review this fictional development instance proposal"
+      },
+      "structuredContent": {
+        "proposalId": "proposal-walkthrough-001",
+        "status": "pending_approval",
+        "reviewerInstructions": "From the project root, an independent reviewer runs in an interactive terminal: npm run cli -- proposals:review --db-path \"<absolute path to the same local .db>\" --proposal-id proposal-walkthrough-001"
+      }
+    },
+    {
+      "tool": "execute_change",
+      "context": "Before the independent human decision; no execution is authorized.",
+      "input": {
+        "proposalId": "proposal-walkthrough-001",
+        "idempotencyKey": "portfolio-execute-001"
+      },
+      "isError": true,
+      "structuredContent": {
+        "error": {
+          "code": "PRECONDITION_FAILED",
+          "message": "Required precondition was not met."
+        }
+      }
+    },
+    {
+      "tool": "execute_change",
+      "context": "Only after the independently authenticated CLI reviewer approves and current execution checks still pass.",
+      "input": {
+        "proposalId": "proposal-walkthrough-001",
+        "idempotencyKey": "portfolio-execute-001"
+      },
+      "structuredContent": {
+        "proposalId": "proposal-walkthrough-001",
+        "status": "executed",
+        "resourceId": "res-aws-ec2-01",
+        "resourceVersion": 2,
+        "executionId": "execution-walkthrough-001",
+        "auditEventId": "audit-walkthrough-005",
+        "result": {
+          "before": {
+            "id": "res-aws-ec2-01",
+            "providerResourceId": "demo/aws/ec2/001",
+            "provider": "aws",
+            "kind": "ec2-instance",
+            "region": "us-east-1",
+            "environment": "development",
+            "owner": "team-sandbox",
+            "tags": {
+              "purpose": "sandbox",
+              "lifecycle": "idle"
+            },
+            "monthlyCostEstimateCents": 6900,
+            "utilizationEstimate": {
+              "metric": "cpu",
+              "percent": 0
+            },
+            "governance": {
+              "protectedFromChanges": false,
+              "hasRestrictedTag": false,
+              "hasPolicyViolation": false
+            },
+            "version": 1
+          },
+          "after": {
+            "id": "res-aws-ec2-01",
+            "providerResourceId": "demo/aws/ec2/001",
+            "provider": "aws",
+            "kind": "ec2-instance",
+            "region": "us-east-1",
+            "environment": "development",
+            "owner": "team-sandbox",
+            "tags": {
+              "purpose": "sandbox",
+              "lifecycle": "idle"
+            },
+            "monthlyCostEstimateCents": 0,
+            "utilizationEstimate": {
+              "metric": "cpu",
+              "percent": 0
+            },
+            "governance": {
+              "protectedFromChanges": false,
+              "hasRestrictedTag": false,
+              "hasPolicyViolation": false
+            },
+            "version": 2
+          },
+          "estimatedMonthlyCostChangeCents": -6900
+        },
+        "simulationNotice": "Fictional demo data; estimates are not real bills or savings."
+      }
+    },
+    {
+      "tool": "get_audit_log",
+      "input": {
+        "proposalId": "proposal-walkthrough-001",
+        "limit": 10,
+        "offset": 0
+      },
+      "structuredContent": {
+        "events": [
+          {
+            "id": "audit-walkthrough-001",
+            "occurredAt": "2026-10-24T12:00:00.000Z",
+            "actorType": "agent",
+            "action": "proposal_created",
+            "subjectType": "proposal",
+            "subjectId": "proposal-walkthrough-001",
+            "summary": "A fictional change proposal was created."
+          },
+          {
+            "id": "audit-walkthrough-002",
+            "occurredAt": "2026-10-24T12:01:00.000Z",
+            "actorType": "agent",
+            "action": "approval_requested",
+            "subjectType": "proposal",
+            "subjectId": "proposal-walkthrough-001",
+            "summary": "Independent review was requested for a fictional proposal."
+          },
+          {
+            "id": "audit-walkthrough-003",
+            "occurredAt": "2026-10-24T12:02:00.000Z",
+            "actorType": "reviewer",
+            "action": "review_decided",
+            "subjectType": "proposal",
+            "subjectId": "proposal-walkthrough-001",
+            "summary": "An independent reviewer decided a fictional proposal."
+          },
+          {
+            "id": "audit-walkthrough-004",
+            "occurredAt": "2026-10-24T12:03:00.000Z",
+            "actorType": "agent",
+            "action": "execution_attempted",
+            "subjectType": "proposal",
+            "subjectId": "proposal-walkthrough-001",
+            "summary": "A fictional change execution was attempted."
+          },
+          {
+            "id": "audit-walkthrough-005",
+            "occurredAt": "2026-10-24T12:04:00.000Z",
+            "actorType": "agent",
+            "action": "execution_result",
+            "subjectType": "proposal",
+            "subjectId": "proposal-walkthrough-001",
+            "summary": "An outcome was recorded for a fictional change execution."
+          }
+        ]
+      }
+    }
+  ]
+}
