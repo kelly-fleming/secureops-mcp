@@ -1,6 +1,6 @@
 {
   "name": "secureops-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "An experimental personal hobby project for fictional cloud governance workflows over MCP",
   "type": "module",

@@ -3,6 +3,27 @@
 Significant changes to this experimental personal hobby project are
 recorded here.
 
+## 0.3.0 - 2026-10-27
+
+### Changed
+
+- Updated README documentation to link to the new guided walkthrough.
+- Expanded developer-facing documentation explaining the distinction between illustrative examples, automated demonstration results, and independently verified behavior.
+
+### Added
+
+- Step-by-step fictional resource governance walkthrough covering resource inspection, analysis, policy evaluation, change proposals, independent approval, simulated execution, and audit inspection.
+- Eight annotated walkthrough images documenting an automated MCP Inspector and authenticated CLI demonstration, including the blocked execution before approval.
+- Representative MCP tool inputs, structured results, and error examples in examples/sample-tool-results.json to help developers understand tool contracts without running the application.
+- Screenshot provenance and capture documentation identifying the environment, test scenario, observed behavior, and verification limitations.
+- Root-level AGENTS.md with implementation guidance for coding agents working with the project's architecture, security boundaries, and testing conventions.
+
+### Limitations
+
+- All resources, costs, and changes remain fictional and local.  The application does not interact with real cloud infrastructure.
+- The runnable MCP server continues to use stdio; no publicly accessible HTTP endpoint is introduced.
+- Walkthrough screenshots demonstrate an automated scenario, not independent human acceptance or comprehensive security verification.
+
 ## 0.2.0 - 2026-10-19
 
 ### Changed
